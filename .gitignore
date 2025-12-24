@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtualenv / Conda
+.venv/
+venv/
+ENV/
+.env
+.conda/
+conda-meta/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*~
+
+# Logs & runs
+logs/
+*.log
+wandb/
+mlruns/
+
+# Model weights / datasets (keep large artifacts out of git)
+models/
+datasets/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.gguf
+
+# Hugging Face / Transformers caches
+.cache/
+cache/
+
+# Gradio
+.gradio/
+
+# Torch / distributed
+*.rendezvous
+*.pt.trace
+
+# Temporary
+tmp/
