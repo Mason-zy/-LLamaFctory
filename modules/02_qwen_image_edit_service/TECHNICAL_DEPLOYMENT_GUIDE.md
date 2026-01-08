@@ -246,6 +246,23 @@ def _maybe_limit_resources():
     except Exception:
         pass
 ```
+
+### 9.3 灵活指定 GPU 设备
+
+默认情况下，脚本会自动检测所有可见 GPU。如果你希望指定特定显卡（例如仅使用 GPU 0 和 GPU 1），可以通过环境变量控制：
+
+```bash
+# 仅使用前两张卡
+export CUDA_VISIBLE_DEVICES=0,1
+
+# 启动服务
+python gradio_app.py
+```
+
+**注意**：
+*   启动前请务必运行 `nvidia-smi` 确认目标显卡显存空闲（建议剩余 > 20GB）。
+*   如果显卡被其他进程（如 vLLM）占用，强行启动会导致 OOM 或服务崩溃。
+
 ---
 ## 10. 生产级部署方案
 ### 10.1 Docker 容器化
