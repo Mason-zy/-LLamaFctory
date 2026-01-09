@@ -1,9 +1,9 @@
 # 模块 01：单卡推理冒烟（文本 + 多模态）
 
-目标：在一张后排 4090（GPU 4）上完成最小可行推理，验证模型权重、模板、tokenizer 与多模态链路，形成可靠基线。
+目标：在一张空闲 4090 上完成最小可行推理，验证模型权重、模板、tokenizer 与多模态链路，形成可靠基线。
 
 ## 前提与资源约束
-- GPU：仅用 GPU 4（`CUDA_VISIBLE_DEVICES=4`），不占用前四张卡。
+- GPU：优先选择一张当前空闲的 GPU（运行前先看 `nvidia-smi`）。本机最近空闲示例：使用 GPU 6（`CUDA_VISIBLE_DEVICES=6`）。
 - CPU：使用约一半核心，避免占满整机。
 - 环境：Conda `videofen`，PyTorch 2.3.1 + CUDA 12.1；已可导入 torch/deepspeed/transformers/ktransformers。
 - 目录约定：工作区根 `/home/zzy/weitiao`；日志建议放 `logs/`，模型缓存放 `/home/zzy/models/`。
@@ -105,7 +105,7 @@ huggingface-cli download Qwen/Qwen2-VL-7B-Instruct \
 
 ### Step 3：文本模型单卡推理冒烟（Qwen2.5-7B-Instruct）
 ```bash
-CUDA_VISIBLE_DEVICES=4 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+CUDA_VISIBLE_DEVICES=6 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
 llamafactory-cli chat \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2.5-7B-Instruct \
   --template qwen
@@ -115,7 +115,7 @@ llamafactory-cli chat \
 ### Step 4：多模态单卡推理冒烟（Qwen2-VL-7B-Instruct）
 准备一张本地图片路径（例：/home/zzy/weitiao/sample.jpg），命令如下：
 ```bash
-CUDA_VISIBLE_DEVICES=4 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+CUDA_VISIBLE_DEVICES=6 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
 llamafactory-cli chat \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2-VL-7B-Instruct \
   --template qwen2_vl
@@ -124,7 +124,7 @@ llamafactory-cli chat \
 
 如果想用图形界面（可选，强制离线避免误拉取 Hub 权重），最少只需要这一行（前提：Step 0 已导出 HF_HOME/HUGGINGFACE_HUB_CACHE；若新开 shell 先 `source ~/.bashrc` 或手动再导出一次）：
 ```bash
-CUDA_VISIBLE_DEVICES=4 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+CUDA_VISIBLE_DEVICES=6 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
 llamafactory-cli webui \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2.5-7B-Instruct \
   --cache_dir /home/zzy/weitiao/.cache/huggingface \
@@ -146,7 +146,7 @@ rm -rf /home/zzy/weitiao/.cache/huggingface/hub/models--Qwen--Qwen-7B
 在 logs/ 中追加记录，示例：
 ```
 [2025-12-24] single-gpu smoke
-cmd: CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat --model_name_or_path /home/zzy/models/Qwen2.5-7B-Instruct --template qwen
+cmd: CUDA_VISIBLE_DEVICES=6 llamafactory-cli chat --model_name_or_path /home/zzy/models/Qwen2.5-7B-Instruct --template qwen
 vram_peak: ~14GB (nvidia-smi)
 latency: ~X s/turn
 status: pass
@@ -162,9 +162,9 @@ notes: 正常吐字
 pip install -U gradio fastapi uvicorn
 ```
 
-2) 启动 Web UI（绑定 GPU 4）：
+2) 启动 Web UI（绑定一张空闲 GPU；示例为 GPU 6）：
 ```bash
-CUDA_VISIBLE_DEVICES=4 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+CUDA_VISIBLE_DEVICES=6 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
 llamafactory-cli webui \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2.5-7B-Instruct \
   --template qwen \
@@ -181,7 +181,7 @@ llamafactory-cli webui \
 
 ## 步骤 A：文本模型推理冒烟（Qwen2.5-7B-Instruct）
 ```bash
-CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat \
+CUDA_VISIBLE_DEVICES=6 llamafactory-cli chat \
   --model_name_or_path Qwen/Qwen2.5-7B-Instruct \
   --template qwen
 ```
@@ -189,7 +189,7 @@ CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat \
 
 ## 步骤 B：多模态推理冒烟（Qwen2-VL-7B-Instruct）
 ```bash
-CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat \
+CUDA_VISIBLE_DEVICES=6 llamafactory-cli chat \
   --model_name_or_path Qwen/Qwen2-VL-7B-Instruct \
   --template qwen2_vl
 ```
@@ -208,7 +208,7 @@ CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat \
 可参考记录格式（追加到 logs/ 日志文件）：
 ```
 [2025-12-24] single-gpu smoke
-cmd: CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat --model_name_or_path Qwen/Qwen2.5-7B-Instruct --template qwen
+cmd: CUDA_VISIBLE_DEVICES=6 llamafactory-cli chat --model_name_or_path Qwen/Qwen2.5-7B-Instruct --template qwen
 vram_peak: ~14GB
 latency: ~X s/turn
 action/fix: none
@@ -216,27 +216,27 @@ notes: 正常吐字
 ```
 
 ## 常见故障排查
-- OOM：优先减小 batch/序列长度；确保仅绑定 GPU 4。
+- OOM：优先减小 batch/序列长度；确保仅绑定到空闲 GPU（例：GPU 6）。
 - 权重下载失败：设置 HF_ENDPOINT 为镜像，或使用 huggingface-cli 预下载到本地路径；必要时多次重试。
 - 模板报错：确认 `--template qwen` / `--template qwen2_vl` 与模型对应。
 - CLI 不响应：检查 Conda 环境是否为 `videofen`，以及 CUDA_VISIBLE_DEVICES 设置。
 
-## 附录：多卡推理与微调起步（仅用后排 4 卡：GPU 4/5/6/7）
+## 附录：多卡推理与微调起步（按“当前空闲卡数”选择）
 前置：完成 Step 0 环境变量与本地模型下载；保持 `HF_HOME=/home/zzy/weitiao/.cache/huggingface`，并尽量在离线模式下使用本地权重。
 
 ### 多卡推理（官方推荐的“推理入口”：直接用 `llamafactory-cli chat`）
 根据官方 examples 的说明：默认会使用**所有可见**的计算设备（GPU/NPU）。因此对“多卡推理跑通”来说，不需要额外用 `accelerate launch` 起多进程；只要让后排 4 卡可见即可。
 
 ```bash
-CUDA_VISIBLE_DEVICES=4,5,6,7 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+CUDA_VISIBLE_DEVICES=6,7 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
 llamafactory-cli chat \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2.5-7B-Instruct \
   --template qwen \
   --infer_backend huggingface
 ```
 
-如何确认“真的用到了 4 卡”：
-- 运行过程中开一个新终端看 `nvidia-smi`，应看到 GPU 4/5/6/7 都有显存占用。
+如何确认“真的用到了多卡”：
+- 运行过程中开一个新终端看 `nvidia-smi`，应看到你选中的那几张卡（例：GPU 6/7）都有显存占用。
 
 说明（避免概念混淆）：
 - 这类用法通常是**单进程**把模型在多 GPU 间做“分片/切分”（常见是 HF 的 device_map 模式），适合交互式推理。

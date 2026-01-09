@@ -105,20 +105,18 @@
 
 ## 5. GPU 映射：为什么命令里同时出现 CUDA_VISIBLE_DEVICES 和 --gpus
 
-你现在的资源约束是“只用后排 4 卡”，所以我们用：
-- `CUDA_VISIBLE_DEVICES=4,5,6,7`：让进程**只能看见**物理 GPU 4/5/6/7
+你现在的资源约束是“优先用当前空闲的卡”，所以我们用：
+- `CUDA_VISIBLE_DEVICES=6,7`：让进程**只能看见**物理 GPU 6/7（示例；实际以空闲卡为准）
 
 随后 LLaMA-Factory 参数：
 - `--gpus 0,1,2,3`：指的是“在可见 GPU 列表中的索引”
 
 因此对应关系是：
-- 可见 GPU 0 → 物理 GPU 4
-- 可见 GPU 1 → 物理 GPU 5
-- 可见 GPU 2 → 物理 GPU 6
-- 可见 GPU 3 → 物理 GPU 7
+- 可见 GPU 0 → 物理 GPU 6
+- 可见 GPU 1 → 物理 GPU 7
 
 这套写法的好处：
-- 不管物理卡号是多少，你都能用 `--gpus 0,1,2,3` 这种固定写法
+- 不管物理卡号是多少，你都能用 `--gpus 0,1,...` 这种“可见索引”的固定写法
 
 ---
 
@@ -131,8 +129,8 @@
 
 ### 6.1 accelerate 版（推荐）
 ```bash
-CUDA_VISIBLE_DEVICES=4,5,6,7 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
-accelerate launch --num_processes 4 --main_process_port 29501 -m llamafactory.launcher \
+CUDA_VISIBLE_DEVICES=6,7 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+accelerate launch --num_processes 2 --main_process_port 29501 -m llamafactory.launcher \
   --stage sft \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2.5-7B-Instruct \
   --template qwen \
@@ -142,15 +140,15 @@ accelerate launch --num_processes 4 --main_process_port 29501 -m llamafactory.la
   --do_predict \
   --predict_with_generate \
   --output_dir outputs/predict_qwen2.5_7b \
-  --gpus 0,1,2,3 \
+  --gpus 0,1 \
   --cutoff_len 2048 \
   --per_device_eval_batch_size 1
 ```
 
 ### 6.2 deepspeed 版（更像“同样的事换个 launcher”）
 ```bash
-CUDA_VISIBLE_DEVICES=4,5,6,7 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
-deepspeed --num_gpus 4 -m llamafactory.launcher \
+CUDA_VISIBLE_DEVICES=6,7 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TRANSFORMERS_NO_FLASH_ATTENTION=1 \
+deepspeed --num_gpus 2 -m llamafactory.launcher \
   --stage sft \
   --model_name_or_path /home/zzy/weitiao/models/Qwen2.5-7B-Instruct \
   --template qwen \
@@ -160,7 +158,7 @@ deepspeed --num_gpus 4 -m llamafactory.launcher \
   --do_predict \
   --predict_with_generate \
   --output_dir outputs/predict_qwen2.5_7b \
-  --gpus 0,1,2,3 \
+  --gpus 0,1 \
   --cutoff_len 2048 \
   --per_device_eval_batch_size 1
 ```
@@ -191,7 +189,7 @@ deepspeed --num_gpus 4 -m llamafactory.launcher \
 - 端口被占用：
   - accelerate：改 `--main_process_port 29501` 为别的端口
   - deepspeed：也可能需要设置/更换 master port（具体取决于 DS 版本与环境变量）
-- GPU 用错：确认 `CUDA_VISIBLE_DEVICES=4,5,6,7` 是否生效；确认 `--gpus 0,1,2,3` 没写成物理卡号。
+- GPU 用错：确认 `CUDA_VISIBLE_DEVICES` 是否生效；确认 `--gpus 0,1,...` 没写成物理卡号。
 - 离线误联网：确认 `HF_HUB_OFFLINE=1` 与 `TRANSFORMERS_OFFLINE=1` 都在同一条命令前缀里。
 - flash-attn 相关报错：确认 `TRANSFORMERS_NO_FLASH_ATTENTION=1`。
 

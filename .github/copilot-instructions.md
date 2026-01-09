@@ -9,36 +9,37 @@
 - 工作目录：/home/zzy/weitiao
 
 ## 硬性资源约束
-- GPU：仅用后四张卡；单卡设 `CUDA_VISIBLE_DEVICES=4`，四卡并行设 `CUDA_VISIBLE_DEVICES=4,5,6,7`
+- GPU：优先使用当前空闲的卡（运行前先看 `nvidia-smi`）。本机最近空闲示例：单卡用 `CUDA_VISIBLE_DEVICES=6`；两卡用 `CUDA_VISIBLE_DEVICES=6,7`。
+   - 若命令里同时出现 `CUDA_VISIBLE_DEVICES` 和 `--gpus`：`--gpus` 是“可见 GPU 列表里的索引”（从 0 开始），不是物理卡号。
 - CPU：只用约一半核心，避免占满整机
 - 未过冒烟前，保持小 batch 与短序列，避免 OOM
 
 ## 学习与实践路径（冒烟 → 放大）
 1) 文本单卡推理冒烟：验证权重、模板、tokenizer
    ```bash
-   CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat \
+    CUDA_VISIBLE_DEVICES=6 llamafactory-cli chat \
      --model_name_or_path Qwen/Qwen2.5-7B-Instruct \
      --template qwen
    ```
 2) 多模态单卡冒烟：验证视觉/图文链路
    ```bash
-   CUDA_VISIBLE_DEVICES=4 llamafactory-cli chat \
+    CUDA_VISIBLE_DEVICES=6 llamafactory-cli chat \
      --model_name_or_path Qwen/Qwen2-VL-7B-Instruct \
      --template qwen2_vl
    ```
-3) 多卡推理（张量并行，4×后四卡）
+3) 多卡推理（张量并行；按“当前空闲卡数”选择进程数）
    ```bash
-   CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --num_processes 4 src/train.py \
+    CUDA_VISIBLE_DEVICES=6,7 accelerate launch --num_processes 2 src/train.py \
      --stage inference \
      --model_name_or_path Qwen/Qwen2.5-7B-Instruct \
      --template qwen \
      --infer_backend huggingface \
-     --gpus 0,1,2,3
+       --gpus 0,1
    ```
    预期：显存约 4 GB/卡，吞吐约单卡的 2.3×。
 4) 文本 LoRA 复现实例（勿改超参，仅改数据路径）
    ```bash
-   CUDA_VISIBLE_DEVICES=4,5,6,7 deepspeed --num_gpus 4 src/train.py \
+    CUDA_VISIBLE_DEVICES=6,7 deepspeed --num_gpus 2 src/train.py \
      --deepspeed examples/deepspeed/ds_z3_bf16.json \
      --stage sft \
      --config_file examples/train_lora/llama3_lora_sft.yaml

@@ -427,7 +427,7 @@ def _assert_vram_headroom() -> None:
         raise RuntimeError(
             "Not enough free VRAM on visible GPUs. "
             f"Need >= {min_free_gib:.0f} GiB free per GPU, but got: {details}. "
-            "Please stop other GPU jobs first (check with `nvidia-smi -i 4,5,6,7`)."
+            "Please stop other GPU jobs first (check the GPUs you selected, e.g. `nvidia-smi -i 6,7`)."
         )
 
 
@@ -468,7 +468,7 @@ def _get_pipe():
     gpu_count = torch.cuda.device_count()
     if gpu_count >= 2:
         # Leave some headroom on each GPU for activations/temporary buffers to reduce OOM risk.
-        # NOTE: When CUDA_VISIBLE_DEVICES=4,5,6,7, the visible GPU indices are 0..3.
+        # NOTE: CUDA_VISIBLE_DEVICES remaps indices. Example: when CUDA_VISIBLE_DEVICES=6,7, the visible GPU indices are 0..1.
         headroom_gib = int(os.environ.get("QWEN_EDIT_GPU_HEADROOM_GIB", "6"))
         gpu0_extra_headroom_gib = int(os.environ.get("QWEN_EDIT_GPU0_EXTRA_HEADROOM_GIB", "4"))
         max_memory = {}

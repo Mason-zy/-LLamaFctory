@@ -292,7 +292,7 @@ CPU 冒烟建议：先把 `Steps` 设为 10～15、最大边长 `max_side` 设�
 - 优先追求：可复现、稳定、可观测（health/日志）、易排障。
 
 **硬性资源约束（本仓库环境约定）**
-- 仅使用后四张卡：`CUDA_VISIBLE_DEVICES=4,5,6,7`
+- GPU：优先使用当前空闲的卡（运行前先看 `nvidia-smi`）。本机最近空闲示例：单卡 `CUDA_VISIBLE_DEVICES=6`；两卡 `CUDA_VISIBLE_DEVICES=6,7`。
 - CPU 使用约一半核心，避免占满整机
 - 先冒烟再放大：先单卡跑通，再扩到 4 卡并发
 
@@ -367,8 +367,8 @@ CPU 冒烟建议：先把 `Steps` 设为 10～15、最大边长 `max_side` 设�
 
 本节目标：你在**中国大陆网络**环境下，也能从“空目录”一步步做到：
 1) 把模型权重完整下载到本地缓存/目录
-2) 单卡（GPU4）冒烟跑通一次图像编辑
-3) 扩展为四卡并发（GPU4/5/6/7）服务形态
+2) 单卡（示例：GPU6）冒烟跑通一次图像编辑
+3) 扩展为多卡并发（按“当前空闲卡数”选择）服务形态
 
 ### 5.0 前置检查（一次性）
 
@@ -513,16 +513,16 @@ huggingface-cli download \
   --resume-download
 ```
 
-### 5.5 单卡冒烟（GPU4）
+### 5.5 单卡冒烟（示例：GPU6）
 
 目标：不做服务化，先用最小脚本把“加载 + 编辑 + 保存图片”跑通。
 
 1) 准备一张输入图片（放到任意路径，例如：`/home/zzy/weitiao/assets/input.png`）。
 
-2) 执行冒烟脚本（注意：只用 GPU4）：
+2) 执行冒烟脚本（注意：只用一张空闲 GPU；示例为 GPU6）：
 
 ```bash
-export CUDA_VISIBLE_DEVICES=4
+export CUDA_VISIBLE_DEVICES=6
 
 python - <<'PY'
 import os
@@ -581,19 +581,19 @@ export HF_HUB_OFFLINE=1
 说明：
 - 开启离线后，如果本地缺文件会直接报错，更容易定位“到底缺了什么”。
 
-### 5.7 四卡服务化（GPU4/5/6/7）
+### 5.7 多卡服务化（按“当前空闲卡数”选择）
 
 本方案推荐的并发形态是“一进程一张卡”。实现落地后，启动方式会是：
 
 ```bash
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=6,7
 export HF_HOME=/home/zzy/weitiao/cache/hf
 export HUGGINGFACE_HUB_CACHE=/home/zzy/weitiao/cache/hf/hub
 export QWEN_EDIT_2511_DIR=/home/zzy/weitiao/models/Qwen-Image-Edit-2511
 export OMP_NUM_THREADS=16
 export MKL_NUM_THREADS=16
 
-# 预期：启动 1 个 master + 4 个 worker（每个 worker 绑定 cuda:0..3）
+# 预期：启动 1 个 master + N 个 worker（每个 worker 绑定 cuda:0..N-1）
 ```
 
 验收标准（服务化阶段）：
@@ -669,10 +669,10 @@ export QWEN_EDIT_2511_DIR=/home/zzy/weitiao/models/Qwen-Image-Edit-2511
 export HF_HUB_OFFLINE=1
 ```
 
-### 9.3 启动 WebUI（单卡 GPU4）
+### 9.3 启动 WebUI（单卡；示例为 GPU6）
 
 ```bash
-export CUDA_VISIBLE_DEVICES=4
+export CUDA_VISIBLE_DEVICES=6
 export QWEN_EDIT_2511_DIR=/home/zzy/weitiao/models/Qwen-Image-Edit-2511
 
 python modules/02_qwen_image_edit_service/gradio_app.py
@@ -685,12 +685,12 @@ python modules/02_qwen_image_edit_service/gradio_app.py
 - 页面可打开
 - 上传图片 + 输入 prompt 点击“生成”能返回结果图
 
-### 9.4 如果单卡 OOM：改为四卡分片（GPU4/5/6/7）
+### 9.4 如果单卡 OOM：改为多卡分片（按“当前空闲卡数”选择）
 
 当你遇到类似报错：`torch.OutOfMemoryError`，说明单卡 24GB 不够或显存碎片严重。此时按下面方式启动：
 
 ```bash
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=6,7
 export QWEN_EDIT_2511_DIR=/home/zzy/weitiao/models/Qwen-Image-Edit-2511
 
 # 降低显存碎片导致的大块分配失败
@@ -708,11 +708,11 @@ python modules/02_qwen_image_edit_service/gradio_app.py
 仍然 OOM 的处理顺序（从简单到激进）：
 1) 把页面里的“最大边长”从 1024 降到 768 或 512
 2) 把 steps 从 40 降到 30/20
-3) 确认 GPU4-7 没有其它进程占显存：`nvidia-smi`（必要时先停掉占用进程）
+3) 确认你选中的 GPU 没有其它进程占显存：`nvidia-smi`（必要时先停掉占用进程）
 
 #### 9.4.1 常见坑：vLLM/其它任务占满 GPU
 
-如果 `nvidia-smi -i 4,5,6,7` 里看到类似 `VLLM::Worker_TP0/TP1/...` 或其它任务占用 20GB+，那么：
+如果你选中的 GPU（例如 `nvidia-smi -i 6,7`）里看到类似 `VLLM::Worker_TP0/TP1/...` 或其它任务占用 20GB+，那么：
 - 你**无法**使用这些 GPU 跑 Qwen-Image-Edit（无论单卡还是分片）。
 - 这不是参数没调好，而是**显存没有空闲**。
 
@@ -726,7 +726,7 @@ docker ps --no-trunc | grep -i vllm || true
 查看占用进程：
 
 ```bash
-nvidia-smi -i 4,5,6,7 --query-compute-apps=pid,process_name,used_memory --format=csv
+nvidia-smi -i 6,7 --query-compute-apps=pid,process_name,used_memory --format=csv
 ```
 
 如果你有权限停止占用（先尝试温和退出，再必要时强杀）：
