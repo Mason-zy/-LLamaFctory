@@ -6,6 +6,284 @@
 
 ---
 
+## 📝 执行日志（实时更新）
+
+### 2026-01-12 | Day 5 执行开始
+
+#### ✅ 步骤 0：前置检查
+```bash
+# 检查当前 Conda 环境
+conda activate videofen
+
+# 验证 PyTorch 和 CUDA
+python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU count: {torch.cuda.device_count()}')"
+
+# 设置使用 GPU 4,5（有部分占用，可共享）
+export CUDA_VISIBLE_DEVICES=4,5
+
+# 验证设置
+echo $CUDA_VISIBLE_DEVICES
+```
+**状态**: ✅ 已完成
+**预期**: PyTorch >= 2.0, CUDA >= 12.0, GPU 4,5 可用（可共享）
+**实际结果**: ✅ 成功
+```
+PyTorch: 2.9.0+cu128
+CUDA available: True
+GPU count: 2
+CUDA_VISIBLE_DEVICES: 4,5
+GPU 4,5 显存占用: 76%（与其他任务共享）
+```
+
+**说明**：
+- GPU 4,5 当前占用 76%，剩余空间足够 Accelerate 训练任务
+- Accelerate 训练显存占用远小于 vLLM 推理（详见下方对比）
+
+---
+
+#### ✅ 步骤 1：安装 Accelerate
+```bash
+conda activate videofen
+pip install accelerate==0.21.0
+
+# 验证安装
+python -c "import accelerate; print(f'Accelerate version: {accelerate.__version__}')"
+```
+**状态**: ✅ 已完成
+**预期**: 显示 Accelerate 版本号 0.21.0
+**实际结果**: ✅ 成功
+```
+Accelerate version: 0.21.0
+```
+
+---
+
+#### ✅ 步骤 2：配置 Accelerate 环境
+```bash
+# 运行配置向导
+accelerate config
+```
+**交互式配置选项**：
+```
+Compute environment: local_machine
+Distributed type: MULTI_GPU (DDP)
+Number of GPUs: 2
+GPU IDs: 4,5
+Mixed precision: bf16
+```
+**状态**: ✅ 已完成
+**预期**: 生成配置文件 `~/.cache/huggingface/accelerate/default_config.yaml`
+**实际结果**: ✅ 成功
+- 配置向导完成
+- 修复了中文逗号问题：`gpu_ids: "4,5"`
+
+---
+
+#### ✅ 步骤 2.5：迁移配置文件到项目目录
+```bash
+# 复制到模块目录
+cp /root/.cache/huggingface/accelerate/default_config.yaml /home/zzy/weitiao/modules/04_Accelerate/accelerate_config.yaml
+
+# 修复中文逗号问题（用 nano 编辑或直接覆盖）
+# 验证配置
+cat /home/zzy/weitiao/modules/04_Accelerate/accelerate_config.yaml
+```
+**状态**: ✅ 已完成
+**完整配置内容**：
+```yaml
+compute_environment: LOCAL_MACHINE
+distributed_type: MULTI_GPU
+downcast_bf16: 'no'
+gpu_ids: "4,5"
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16
+num_machines: 1
+num_processes: 2
+rdzv_backend: static
+same_network: true
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false
+```
+**实际结果**: ✅ 成功
+**配置文件位置**: `/home/zzy/weitiao/modules/04_Accelerate/accelerate_config.yaml`
+
+---
+
+#### ✅ 步骤 3：创建测试脚本
+```bash
+# 创建工作目录
+mkdir -p /home/zzy/weitiao/experiments/accelerate
+cd /home/zzy/weitiao/experiments/accelerate
+
+# 创建测试脚本
+cat > test_accelerate.py << 'EOF'
+import torch
+from accelerate import Accelerator
+
+print("=" * 60)
+print("Accelerate 测试脚本")
+print("=" * 60)
+
+# 初始化 Accelerator
+accelerator = Accelerator()
+
+# 创建简单模型
+model = torch.nn.Linear(10, 10)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+dataloader = torch.utils.data.DataLoader(
+    torch.randn(100, 10), batch_size=10
+)
+
+# 核心魔法：prepare()
+model, optimizer, dataloader = accelerator.prepare(
+    model, optimizer, dataloader
+)
+
+# 训练循环
+for epoch in range(2):
+    for batch in dataloader:
+        outputs = model(batch)
+        loss = outputs.sum()
+
+        # 替换 loss.backward()
+        accelerator.backward(loss)
+
+        optimizer.step()
+        optimizer.zero_grad()
+
+    # 只在主进程打印
+    if accelerator.is_main_process:
+        print(f"Epoch {epoch} completed")
+
+print(f"\n{'=' * 60}")
+print(f"使用设备: {accelerator.device}")
+print(f"进程索引: {accelerator.process_index}")
+print(f"进程总数: {accelerator.num_processes}")
+print(f"混合精度: {accelerator.mixed_precision}")
+print(f"梯度累积步数: {accelerator.gradient_accumulation_steps}")
+print("=" * 60)
+EOF
+```
+**状态**: ⏳ 待执行
+**实际结果**: 待记录
+
+---
+
+#### ✅ 步骤 4：单卡测试
+```bash
+cd /home/zzy/weitiao/modules/04_Accelerate
+CUDA_VISIBLE_DEVICES=4 python test_accelerate.py
+```
+**状态**: ✅ 已完成
+**预期**:
+- 使用 GPU 4
+- 进程总数: 1
+- 训练正常完成
+**实际结果**: ✅ 成功
+```
+Epoch 0 completed
+Epoch 1 completed
+使用设备: cuda
+进程索引: 0
+进程总数: 1
+混合精度: no (直接运行，未读取配置文件)
+梯度累积步数: 1
+```
+**说明**：直接用 `python` 运行不会应用配置文件中的混合精度设置
+
+---
+
+#### ✅ 步骤 5：双卡测试
+```bash
+accelerate launch --config_file accelerate_config.yaml test_accelerate.py
+```
+**状态**: ✅ 已完成
+**预期**:
+- 使用 GPU 4,5
+- 进程总数: 2
+- 混合精度 bf16 生效
+**实际结果**: ✅ 成功
+```
+进程 0: 使用设备 cuda:0 (GPU 4), 进程索引 0, 混合精度 bf16
+进程 1: 使用设备 cuda:1 (GPU 5), 进程索引 1, 混合精度 bf16
+Epoch 0 completed
+Epoch 1 completed
+```
+**关键发现**：
+- ✅ 双进程并行运行（进程 0 和 1）
+- ✅ 混合精度 bf16 生效（使用 accelerate launch）
+- ✅ GPU 4→cuda:0, GPU 5→cuda:1 映射正确
+- ⚠️ 警告信息正常（进程组未显式销毁，不影响功能）
+
+---
+
+#### ✅ 步骤 6：监控双卡训练（新终端）
+```bash
+nvitop
+# 或
+watch -n 1 nvidia-smi
+```
+**状态**: ✅ 已完成
+**预期**: GPU 4 和 GPU 5 都有显存占用（约 2-4 GB/卡，与其他任务共享）
+**实际结果**: ✅ 正常
+```
+GPU 4: 18.75 GB (76.4%) - vLLM TP=2 任务
+GPU 5: 18.75 GB (76.4%) - vLLM TP=2 任务
+测试脚本运行后: 显存占用不变（测试模型太小，可忽略）
+```
+**说明**：
+- GPU 4-5 已有 vLLM 任务（14B 模型张量并行）
+- Accelerate 测试脚本只有 10→10 线性层，显存占用 < 100 MB
+- 双卡训练验证成功（双进程并行，混合精度 bf16）
+
+---
+
+### 📊 Day 5 验收进度
+- [x] Accelerate 安装成功 ✅
+- [x] 配置文件生成正确 ✅
+- [x] 单卡测试通过 ✅
+- [x] 双卡测试通过 ✅
+- [x] 理解 prepare() 方法作用 ✅
+
+**Day 5 状态**: ✅ **全部完成！**
+
+---
+
+## 🎉 Day 5 总结
+
+### ✅ 完成的任务
+1. ✅ 安装 Accelerate 0.21.0
+2. ✅ 配置 Accelerate 环境（GPU 4,5 + BF16）
+3. ✅ 创建项目级配置文件
+4. ✅ 单卡测试（验证基本功能）
+5. ✅ 双卡测试（验证数据并行）
+6. ✅ 混合精度 BF16 生效
+
+### 🎯 核心收获
+- **accelerator.prepare()**：自动处理设备分配、多卡同步
+- **accelerate launch**：应用配置文件的唯一方式
+- **is_main_process**：避免多进程重复输出
+- **bf16 vs no**：配置文件中的混合精度只在 `accelerate launch` 时生效
+
+### 📝 关键命令
+```bash
+# 配置向导
+accelerate config
+
+# 单卡运行（不应用配置文件）
+CUDA_VISIBLE_DEVICES=4 python test_accelerate.py
+
+# 双卡运行（应用配置文件）
+accelerate launch --config_file accelerate_config.yaml test_accelerate.py
+```
+
+---
+
+---
+
 ## 📋 学习目标
 
 - [ ] 理解 Accelerate 的核心价值（分布式训练抽象层）
