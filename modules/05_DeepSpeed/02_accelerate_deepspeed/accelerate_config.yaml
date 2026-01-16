@@ -9,9 +9,6 @@ num_machines: 1
 num_processes: 2
 rdzv_backend: static
 same_network: true
-tpu_use_cluster: false
-tpu_use_sudo: false
-use_cpu: false
 
-# DeepSpeed 配置
-deepspeed_config: ds_config_zero2.json
+# DeepSpeed 配置文件路径（关键！）
+deepspeed_config_file: ds_config.json
