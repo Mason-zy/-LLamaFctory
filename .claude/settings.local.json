@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(python -m pip:*)",
+      "Bash(py:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(powershell:*)",
+      "Bash(powershell.exe -Command \"[Environment]::GetEnvironmentVariable\\(''Path'', ''User''\\)\")",
+      "Bash(powershell.exe:*)"
     ]
   }
 }
